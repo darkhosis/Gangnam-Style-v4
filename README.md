@@ -48,7 +48,7 @@ regularly to indicate new official, stable release versions of Bitcoin.
 Testing
 -------
 
-A personal note; I don't test any of this stuff.
+A personal note; I don't test any of this stuff.  If it doesn't work, I'll ride a pig off into the sunset, like Kim Jong-un 
 
 Testing and code review is the bottleneck for development; we get more pull
 requests than we can review and test on short notice. Please be patient and help out by testing
