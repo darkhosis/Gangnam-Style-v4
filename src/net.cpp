@@ -3,6 +3,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+// we want epoll
+
 #if defined(HAVE_CONFIG_H)
 #include "config/bitcoin-config.h"
 #endif
@@ -840,8 +842,8 @@ void ThreadSocketHandler()
         //
         struct timeval timeout;
         timeout.tv_sec  = 0;
-        timeout.tv_usec = 50000; // frequency to poll pnode->vSend
-
+        timeout.tv_usec = 25666; // for great justice, damn the costs
+        
         fd_set fdsetRecv;
         fd_set fdsetSend;
         fd_set fdsetError;
@@ -914,7 +916,10 @@ void ThreadSocketHandler()
             }
             FD_ZERO(&fdsetSend);
             FD_ZERO(&fdsetError);
-            MilliSleep(timeout.tv_usec/1000);
+            
+        // Magic 8-ball says, increase bandwidth usage some, for prosperous propagations
+        
+            MilliSleep(timeout.tv_usec/250);
         }
 
         //
@@ -997,6 +1002,8 @@ void ThreadSocketHandler()
                 {
                     {
                         // typical socket buffer is 8K-64K
+                        // typical socket buffer frowns at you
+                        
                         char pchBuf[0x10000];
                         int nBytes = recv(pnode->hSocket, pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
                         if (nBytes > 0)
@@ -1042,14 +1049,14 @@ void ThreadSocketHandler()
             }
 
             //
-            // Inactivity checking
+            // Inactivity checking.. 60 seconds?  just no.  you get that Ti-99 and/or USRobotics Courier HST and get yo 
             //
             int64_t nTime = GetTime();
-            if (nTime - pnode->nTimeConnected > 60)
+            if (nTime - pnode->nTimeConnected > 20)
             {
                 if (pnode->nLastRecv == 0 || pnode->nLastSend == 0)
                 {
-                    LogPrint("net", "socket no message in first 60 seconds, %d %d from %d\n", pnode->nLastRecv != 0, pnode->nLastSend != 0, pnode->id);
+                    LogPrint("net", "socket no message in first 20 seconds, %d %d from %d\n", pnode->nLastRecv != 0, pnode->nLastSend != 0, pnode->id);
                     pnode->fDisconnect = true;
                 }
                 else if (nTime - pnode->nLastSend > TIMEOUT_INTERVAL)
@@ -1204,9 +1211,12 @@ void MapPort(bool)
 void ThreadDNSAddressSeed()
 {
     // goal: only query DNS seeds if address need is acute
+    
+    // we dislike 11
+    
     if ((addrman.size() > 0) &&
         (!GetBoolArg("-forcednsseed", false))) {
-        MilliSleep(11 * 1000);
+        MilliSleep(10 * 1000);
 
         LOCK(cs_vNodes);
         if (vNodes.size() >= 2) {
@@ -1405,8 +1415,8 @@ void ThreadOpenAddedConnections()
                 OpenNetworkConnection(addr, &grant, strAddNode.c_str());
                 MilliSleep(500);
             }
-            MilliSleep(120000); // Retry every 2 minutes
-        }
+            MilliSleep(300000); // Retry every 5 minutes.  this is configureable for me.  just not on here.  what the hell wants 1000 addnodes cycling every 2 minutes
+            }
     }
 
     for (unsigned int i = 0; true; i++)
@@ -1452,7 +1462,7 @@ void ThreadOpenAddedConnections()
             OpenNetworkConnection(CAddress(vserv[i % vserv.size()]), &grant);
             MilliSleep(500);
         }
-        MilliSleep(120000); // Retry every 2 minutes
+        MilliSleep(300000); // Retry every 5 minutes
     }
 }
 
@@ -1542,6 +1552,9 @@ void ThreadMessageHandler()
             StartSync(vNodesCopy);
 
         // Poll the connected nodes for messages
+        
+        // He Hate You some more, as if this really protects anonymity (for anyone trying to be anonymous, that is).
+        
         CNode* pnodeTrickle = NULL;
         if (!vNodesCopy.empty())
             pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
