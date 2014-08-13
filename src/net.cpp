@@ -50,8 +50,9 @@
 using namespace std;
 using namespace boost;
 
+int nMaxOutbound = 5;
+
 namespace {
-    const int MAX_OUTBOUND_CONNECTIONS = 8;
 
     struct ListenSocket {
         SOCKET socket;
@@ -76,7 +77,7 @@ static CNode* pnodeSync = NULL;
 uint64_t nLocalHostNonce = 0;
 static std::vector<ListenSocket> vhListenSocket;
 CAddrMan addrman;
-int nMaxConnections = 125;
+int nMaxConnections = 30;
 
 vector<CNode*> vNodes;
 CCriticalSection cs_vNodes;
@@ -947,7 +948,7 @@ void ThreadSocketHandler()
                     if (nErr != WSAEWOULDBLOCK)
                         LogPrintf("socket error accept failed: %s\n", NetworkErrorString(nErr));
                 }
-                else if (nInbound >= nMaxConnections - MAX_OUTBOUND_CONNECTIONS)
+                else if (nInbound >= nMaxConnections - nMaxOutbound)
                 {
                     CloseSocket(hSocket);
                 }
@@ -1332,14 +1333,14 @@ void ThreadOpenConnections()
 
         // Only connect out to one peer per network group (/16 for IPv4).
         // Do this here so we don't have to critsect vNodes inside mapAddresses critsect.
-        int nOutbound = 0;
+        int nMaxOutbound = 0;
         set<vector<unsigned char> > setConnected;
         {
             LOCK(cs_vNodes);
             BOOST_FOREACH(CNode* pnode, vNodes) {
                 if (!pnode->fInbound) {
                     setConnected.insert(pnode->addr.GetGroup());
-                    nOutbound++;
+                    nMaxOutbound++;
                 }
             }
         }
@@ -1349,8 +1350,8 @@ void ThreadOpenConnections()
         int nTries = 0;
         while (true)
         {
-            // use an nUnkBias between 10 (no outgoing connections) and 90 (8 outgoing connections)
-            CAddress addr = addrman.Select(10 + min(nOutbound,8)*10);
+            // use an nUnkBias between 10 (no outgoing connections) and 90 (5 outgoing connections)
+            CAddress addr = addrman.Select(10 + min(nMaxOutbound,5)*18);
 
             // if we selected an invalid address, restart
             if (!addr.IsValid() || setConnected.count(addr.GetGroup()) || IsLocal(addr))
@@ -1740,7 +1741,7 @@ void StartNode(boost::thread_group& threadGroup)
 {
     if (semOutbound == NULL) {
         // initialize semaphore
-        int nMaxOutbound = min(MAX_OUTBOUND_CONNECTIONS, nMaxConnections);
+        nMaxOutbound = min(nMaxOutbound, nMaxConnections);
         semOutbound = new CSemaphore(nMaxOutbound);
     }
 
@@ -1782,7 +1783,7 @@ bool StopNode()
     LogPrintf("StopNode()\n");
     MapPort(false);
     if (semOutbound)
-        for (int i=0; i<MAX_OUTBOUND_CONNECTIONS; i++)
+        for (int i=0; i < nMaxOutbound; i++)
             semOutbound->post();
     MilliSleep(50);
     DumpAddresses();
