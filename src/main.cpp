@@ -1881,8 +1881,6 @@ bool static WriteChainState(CValidationState &state) {
         // twice (once in the log, and once in the tables). This is already
         // an overestimation, as most will delete an existing entry or
         // overwrite one. Still, use a conservative safety factor of 2.
-        if (!CheckDiskSpace(100 * 2 * 2 * pcoinsTip->GetCacheSize()))
-            return state.Error("out of disk space");
         FlushBlockFile();
         pblocktree->Sync();
         if (!pcoinsTip->Flush())
@@ -2276,7 +2274,7 @@ bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAdd
         unsigned int nOldChunks = (pos.nPos + BLOCKFILE_CHUNK_SIZE - 1) / BLOCKFILE_CHUNK_SIZE;
         unsigned int nNewChunks = (infoLastBlockFile.nSize + BLOCKFILE_CHUNK_SIZE - 1) / BLOCKFILE_CHUNK_SIZE;
         if (nNewChunks > nOldChunks) {
-            if (CheckDiskSpace(nNewChunks * BLOCKFILE_CHUNK_SIZE - pos.nPos)) {
+            if (nNewChunks * BLOCKFILE_CHUNK_SIZE - pos.nPos) {
                 FILE *file = OpenBlockFile(pos);
                 if (file) {
                     LogPrintf("Pre-allocating up to position 0x%x in blk%05u.dat\n", nNewChunks * BLOCKFILE_CHUNK_SIZE, pos.nFile);
@@ -2322,7 +2320,7 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
     unsigned int nOldChunks = (pos.nPos + UNDOFILE_CHUNK_SIZE - 1) / UNDOFILE_CHUNK_SIZE;
     unsigned int nNewChunks = (nNewSize + UNDOFILE_CHUNK_SIZE - 1) / UNDOFILE_CHUNK_SIZE;
     if (nNewChunks > nOldChunks) {
-        if (CheckDiskSpace(nNewChunks * UNDOFILE_CHUNK_SIZE - pos.nPos)) {
+        if (nNewChunks * UNDOFILE_CHUNK_SIZE - pos.nPos) {
             FILE *file = OpenUndoFile(pos);
             if (file) {
                 LogPrintf("Pre-allocating up to position 0x%x in rev%05u.dat\n", nNewChunks * UNDOFILE_CHUNK_SIZE, pos.nFile);
@@ -2871,17 +2869,6 @@ bool AbortNode(const std::string &strMessage) {
     uiInterface.ThreadSafeMessageBox(strMessage, "", CClientUIInterface::MSG_ERROR);
     StartShutdown();
     return false;
-}
-
-bool CheckDiskSpace(uint64_t nAdditionalBytes)
-{
-    uint64_t nFreeBytesAvailable = filesystem::space(GetDataDir()).available;
-
-    // Check for nMinDiskSpace bytes (currently 50MB)
-    if (nFreeBytesAvailable < nMinDiskSpace + nAdditionalBytes)
-        return AbortNode(_("Error: Disk space is low!"));
-
-    return true;
 }
 
 FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
